@@ -26,7 +26,7 @@ DEBUG = env.bool("DJANGO_DEBUG", False)
 # In Windows, this must be set to your system time zone.
 TIME_ZONE = "America/Sao_Paulo"
 # https://docs.djangoproject.com/en/dev/ref/settings/#language-code
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "pt-br"
 # https://docs.djangoproject.com/en/dev/ref/settings/#languages
 # from django.utils.translation import gettext_lazy as _
 # LANGUAGES = [
@@ -88,6 +88,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "djangozap.users",
     # Your stuff: custom apps go here
+    "whatsapp",  # Nosso app principal
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -358,3 +359,9 @@ SPECTACULAR_SETTINGS = {
 }
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+EVOLUTION_API_BASE_URL = env(
+    "EVOLUTION_API_BASE_URL",
+    default="https://api.evolution.com",
+)
+EVOLUTION_API_KEY = env("EVOLUTION_API_KEY", default="")
