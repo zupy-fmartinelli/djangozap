@@ -1,0 +1,8 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools %}
+  <div class="mb-2">
+    <a href="{{ sync_button_url }}" class="button">🔄 Sincronizar com Evolution API</a>
+  </div>
+  {{ block.super }}
+{% endblock object-tools %}
