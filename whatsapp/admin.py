@@ -1,106 +1,93 @@
+import json
+
+import requests
+from django.conf import settings
 from django.contrib import admin
 from django.contrib import messages
-from django.core.management import call_command
-from django.shortcuts import redirect
-from django.urls import path
-from django.utils.html import format_html
 
 from .models import WhatsAppInstance
-from .services import EvolutionAPI
 
 
 @admin.register(WhatsAppInstance)
 class WhatsAppInstanceAdmin(admin.ModelAdmin):
+    """Admin para gerenciar instâncias do WhatsApp."""
+
     list_display = (
         "instance_name",
         "phone_number",
         "integration_type",
         "is_active",
         "created_at",
-        "show_qr_code",
+        "qrcode_display",
     )
     search_fields = ("instance_name", "phone_number")
     list_filter = ("is_active", "integration_type")
-    readonly_fields = ("api_key", "token", "qrcode_url", "created_at", "updated_at")
+    actions = ["create_instance"]
 
-    def get_urls(self):
-        """Adiciona URLs personalizadas para sincronizar e criar instâncias"""
-        urls = super().get_urls()
-        custom_urls = [
-            path(
-                "sync/",
-                self.admin_site.admin_view(self.sync_instances),
-                name="whatsapp_sync",
-            ),
-            path(
-                "create-instance/",
-                self.admin_site.admin_view(self.create_instance),
-                name="whatsapp_create_instance",
-            ),
-        ]
-        return custom_urls + urls
-
-    def sync_instances(self, request):
-        """Executa a sincronização das instâncias e redireciona para a lista"""
-        call_command("sync_instances")
-        self.message_user(
-            request,
-            "✅ Instâncias sincronizadas com sucesso!",
-            messages.SUCCESS,
-        )
-        return redirect("..")
-
-    def create_instance(self, request):
-        """Cria uma nova instância no Evolution API e exibe QR Code"""
-
-        instance_count = WhatsAppInstance.objects.count() + 1
-        instance_name = f"instancia-{instance_count}"
-        integration_type = request.GET.get(
-            "integration",
-            "WHATSAPP-BAILEYS",
-        )  # Define um padrão
-
-        result = EvolutionAPI.create_instance(instance_name, integration_type)
-
-        if "error" in result:
-            self.message_user(
+    @admin.action(description="Criar Instância no Evolution API")
+    def create_instance(self, request, queryset):
+        """Ação para criar instância na Evolution API."""
+        for obj in queryset:
+            self.save_whatsapp_instance(
                 request,
-                f"❌ Erro ao criar instância: {result['error']}",
-                messages.ERROR,
+                obj,
+                self.get_form(request, obj, change=False),
             )
-            return redirect("..")
 
-        WhatsAppInstance.objects.create(
-            instance_name=instance_name,
-            integration_type=integration_type,
-            api_key=result.get(
-                "api_key",
-                "",
-            ),  # 🔥 Agora a API Key é salva automaticamente
-            token=result.get("token", ""),
-            qrcode_url=result.get("qrcode_url", ""),
-            is_active=False,
-        )
+    @admin.display(description="QR Code")
+    def qrcode_display(self, obj):
+        """Exibe a imagem do QR Code no Admin."""
 
-        self.message_user(
-            request,
-            f"✅ Instância '{instance_name}' criada com sucesso!",
-            messages.SUCCESS,
-        )
-        return redirect("..")
+    def save_whatsapp_instance(self, request, obj, form, *, change=False):
+        """Cria a instância na Evolution API e armazena os dados."""
+        # Usando a URL da Evolution API do settings
+        api_url = f"{settings.evolution_api_base_url}/instance/create"
+        headers = {
+            "apikey": settings.evolution_api_key,
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "instanceName": obj.instance_name,
+            "token": "",
+            "qrcode": True,
+            "number": obj.phone_number,
+            "integration": obj.integration_type,
+            "webhook": "",
+            "webhook_by_events": True,
+            "events": ["APPLICATION_STARTUP"],
+            "reject_call": True,
+            "msg_call": "Não aceitamos chamadas!",
+            "groups_ignore": True,
+            "always_online": True,
+            "read_messages": True,
+            "read_status": True,
+            "websocket_enabled": False,
+            "rabbitmq_enabled": False,
+            "sqs_enabled": False,
+        }
 
-    def changelist_view(self, request, extra_context=None):
-        """Adiciona os botões na tela de listagem"""
-        extra_context = extra_context or {}
-        extra_context["sync_button_url"] = "sync/"
-        extra_context["create_instance_url"] = "create-instance/"
-        return super().changelist_view(request, extra_context=extra_context)
+        try:
+            response = requests.post(
+                api_url,
+                json=payload,
+                headers=headers,
+                timeout=10,
+            )  # Fix for S113
+            if response.status_code in [200, 201]:  # Aceita tanto 200 quanto 201
+                data = response.json()
+                if "error" in data:  # Fix for TRY300
+                    messages.error(request, f"⚠ Erro na API: {data['error']}")
+                else:
+                    obj.instance_id = data["instance"]["instanceId"]
+                    obj.is_active = data["instance"]["status"] == "connecting"
+                    obj.qrcode_url = data.get("qrcode", {}).get("base64", "")
 
-    @admin.display(
-        description="QR Code",
-    )
-    def show_qr_code(self, obj):
-        """Exibe o QR Code no Django Admin"""
-        if obj.qrcode_url:
-            return format_html(f'<img src="{obj.qrcode_url}" width="150">')
-        return "QR Code não disponível"
+                    super().save_model(request, obj, form, change)
+                    messages.success(request, "✅ Instância criada com sucesso!")
+            else:
+                messages.error(
+                    request,
+                    f"❌ Erro ao criar a instância! Código {response.status_code}",
+                )
+        except (requests.RequestException, KeyError, json.JSONDecodeError) as e:
+            messages.error(request, f"⚠ Erro ao processar resposta da API: {e!s}")

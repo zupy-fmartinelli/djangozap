@@ -27,6 +27,7 @@ class WhatsAppInstance(models.Model):
     )
     phone_number = models.CharField(
         max_length=20,
+        unique=True,  # 🔹 Garante que um número só tenha 1 instância
         help_text="Número de telefone vinculado",
     )
     integration_type = models.CharField(
@@ -41,15 +42,19 @@ class WhatsAppInstance(models.Model):
         default="",
         help_text="Token da instância gerado pela API",
     )
-    qrcode_url = models.URLField(
+    qrcode_url = models.TextField(
         blank=True,
         default="",
         help_text="URL do QR Code para ativação da instância",
     )
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)  # 🔹 Agora começa como inativo
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        """Método recomendado para representação do modelo no Django Admin."""
+        """Representação no Django Admin."""
         return f"{self.instance_name} ({self.phone_number})"
+
+    def get_qrcode(self):
+        """Retorna o QR Code da instância, se disponível."""
+        return self.qrcode_url if self.qrcode_url else "QR Code não disponível"

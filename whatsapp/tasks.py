@@ -68,3 +68,62 @@ def update_whatsapp_info(user_id):
             user_id,
         )  # 🔥 `logger.exception` já inclui a exceção automaticamente!
         return f"⚠️ Erro inesperado ao atualizar WhatsApp do usuário {user_id}."
+
+
+@shared_task
+def send_whatsapp_message(user_id, number, message):
+    """Task Celery para enviar mensagem via WhatsApp."""
+    try:
+        user = User.objects.get(id=user_id)
+        response = EvolutionAPI.send_message(user, number, message)
+
+        if "error" in response:
+            logger.warning(
+                "❌ Falha ao enviar mensagem para %s: %s",
+                number,
+                response["error"],
+            )
+            return response
+        logger.info(
+            "✅ Mensagem enviada para %s | Status: %s",
+            number,
+            response["status"],
+        )
+        return response  # noqa: TRY300
+
+    except User.DoesNotExist:
+        logger.exception("❌ Usuário %s não encontrado.", user_id)
+        return {"error": f"Usuário {user_id} não encontrado."}
+
+
+@shared_task
+def send_bulk_whatsapp_message(message_template):
+    """Envia uma mensagem personalizada para todos os usuários com WhatsApp cadastrado.
+
+    - message_template: Mensagem com `{nome}`
+    - para ser substituído pelo nome real do usuário.
+    """
+    users = User.objects.exclude(phone_number__isnull=True).exclude(phone_number="")
+
+    results = []
+    for user in users:
+        nome_usuario = (
+            user.name or user.first_name or "Amigo"
+        )  # Usa o que estiver disponível
+        mensagem_personalizada = message_template.replace("{nome}", nome_usuario)
+
+        logger.info(
+            "📩 Enviando para %s: %s",
+            user.phone_number,
+            mensagem_personalizada,
+        )
+        response = EvolutionAPI.send_message(
+            user,
+            str(user.phone_number),
+            mensagem_personalizada,
+        )
+
+        status = response.get("status", "ERRO")
+        results.append(f"📨 {user.email} ({user.phone_number}): {status}")
+
+    return results
