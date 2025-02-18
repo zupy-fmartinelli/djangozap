@@ -27,6 +27,7 @@ if __name__ == "__main__":
     # This allows easy placement of apps within the interior
     # djangozap directory.
     current_path = Path(__file__).parent.resolve()
+    sys.path.append(str(current_path))
     sys.path.append(str(current_path / "djangozap"))
 
     execute_from_command_line(sys.argv)

@@ -323,7 +323,9 @@ ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER = "djangozap.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
-ACCOUNT_FORMS = {"signup": "djangozap.users.forms.UserSignupForm"}
+# ACCOUNT_FORMS = {"signup": "djangozap.users.forms.UserSignupForm"}
+# https://docs.allauth.org/en/latest/account/forms.html
+ACCOUNT_FORMS = {"signup": "djangozap.users.forms.CustomSignupForm"}
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_ADAPTER = "djangozap.users.adapters.SocialAccountAdapter"
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
@@ -365,3 +367,4 @@ EVOLUTION_API_BASE_URL = env(
     default="https://api.evolution.com",
 )
 EVOLUTION_API_KEY = env("EVOLUTION_API_KEY", default="")
+EVOLUTION_INSTANCE_NAME = env("EVOLUTION_INSTANCE_NAME", default=None)

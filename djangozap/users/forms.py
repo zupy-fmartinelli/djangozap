@@ -3,6 +3,7 @@ from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from django.contrib.auth import forms as admin_forms
 from django.forms import EmailField
 from django.utils.translation import gettext_lazy as _
+from phonenumber_field.formfields import PhoneNumberField
 
 from .models import User
 
@@ -42,3 +43,13 @@ class UserSocialSignupForm(SocialSignupForm):
     Default fields will be added automatically.
     See UserSignupForm otherwise.
     """
+
+
+class CustomSignupForm(SignupForm):
+    phone_number = PhoneNumberField(region="BR", required=True, label="Telefone")
+
+    def save(self, request):
+        user = super().save(request)
+        user.phone_number = self.cleaned_data["phone_number"]
+        user.save()
+        return user
